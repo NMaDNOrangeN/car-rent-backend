@@ -90,6 +90,7 @@ class User(SQLModel, table=True):
                                  sa_column=Column(DateTime, 
                                                   default=datetime.now, 
                                                   onupdate=datetime.now))
+    
     type: UserType = Relationship(back_populates="users")
     
     rentals: list["Rental"] = Relationship(back_populates="user", cascade_delete=True)
@@ -114,6 +115,7 @@ class Rental(SQLModel, table=True):
                                  sa_column=Column(DateTime, 
                                                   default=datetime.now, 
                                                   onupdate=datetime.now))
+    
     user: User = Relationship(back_populates="rentals")
     auto: Auto = Relationship(back_populates="rentals")
     status: RentalStatus = Relationship(back_populates="rentals")
@@ -134,6 +136,7 @@ class Rate(SQLModel, table=True):
 
 
 #Таблицы для CRUD
+#Админ-таблицы
 class UserCreate(BaseModel):
     username: str
     phone_number: str | None = None
@@ -154,3 +157,99 @@ class UserUpdate(BaseModel):
     email: str | None = None
     password: str | None = None
     type_id: int | None = None
+
+class UserTypeRead(BaseModel):
+    id: int
+    name: str
+
+#Менеджер-таблицы
+class AutoBrandCreate(BaseModel):
+    name: str
+
+class AutoBrandRead(BaseModel):
+    id: int
+    name: str
+
+class AutoBrandUpdate(BaseModel):
+    name: str | None = None
+
+class AutoModelCreate(BaseModel):
+    name: str
+    brand_id: int
+
+class AutoModelRead(BaseModel):
+    id: int
+    name: str
+    brand_id: int
+
+class AutoModelUpdate(BaseModel):
+    name: str | None = None
+    brand_id: int | None = None
+
+class AutoTypeRead(BaseModel):
+    id: int
+    name: str
+
+class AutoStatusRead(BaseModel):
+    id: int
+    name: str
+
+class AutoCreate(BaseModel):
+    brand_id: int
+    model_id: int | None = None
+    year: int
+    type_id: int
+    price_per_day: float
+
+class AutoRead(BaseModel):
+    id: int
+    brand_id: int
+    model_id: int | None = None
+    year: int
+    type_id: int
+    price_per_day: float
+    status_id: int
+
+class AutoUpdate(BaseModel):
+    brand_id: int | None = None
+    model_id: int | None = None
+    year: int | None = None
+    type_id: int | None = None
+    price_per_day: float | None = None
+    status_id: int | None = None
+
+class RentalStatusRead(BaseModel):
+    id: int
+    name: str
+
+class RentalCreate(BaseModel):
+    user_id: int
+    auto_id: int
+    date_of_beginning_rental: datetime
+    date_of_end_rental: datetime
+    total_price: float
+
+class RentalRead(BaseModel):
+    id: int
+    user_id: int
+    auto_id: int
+    date_of_beginning_rental: datetime
+    date_of_end_rental: datetime
+    total_price: float
+    status_id: int
+
+class RentalUpdate(BaseModel):
+    auto_id: int | None = None
+    date_of_beginning_rental: datetime | None = None
+    date_of_end_rental: datetime | None = None
+    total_price: float | None = None
+    status_id: int | None = None
+
+class RateRead(BaseModel):
+    id: int
+    auto_id: int
+    user_id: int
+    rating: int
+    comment: str | None = None
+
+#Клиент-таблицы

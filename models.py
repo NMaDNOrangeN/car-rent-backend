@@ -1,10 +1,16 @@
 from datetime import datetime, timedelta
 from sqlmodel import SQLModel, Field, Relationship, Column, DateTime
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, StringConstraints
+from typing_extensions import Annotated
 import db
 
+#Для валидации Email, пароля и номера телефона
+EmailStrType = Annotated[str, StringConstraints(pattern=r"^([a-z0-9_\.-]+)@([a-z0-9_\.-]+)\.([a-z\.]{2,6})$")]
+PhoneNumberType = Annotated[str, StringConstraints(pattern=r"^\+?[0-9]{10,15}$")]
+PasswordStrType = Annotated[str, StringConstraints(pattern=r"^([A-Za-z\d]{8,})$")]
+
 #Основные таблицы
-class AutoBrand(SQLModel, table=True):
+class CarBrand(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
     created_at: datetime = Field(default_factory=datetime.now)
@@ -13,56 +19,52 @@ class AutoBrand(SQLModel, table=True):
                                                   default=datetime.now, 
                                                   onupdate=datetime.now))
 
-    models: list["AutoModel"] = Relationship(back_populates="brand", cascade_delete=True)
-    autos: list["Auto"] = Relationship(back_populates="brand", cascade_delete=True)
+    models: list["CarModel"] = Relationship(back_populates="brand", cascade_delete=True)
 
-class AutoModel(SQLModel, table=True):
+class CarModel(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
-    brand_id: int = Field(foreign_key="autobrand.id", ondelete="CASCADE")
+    brand_id: int = Field(foreign_key="carbrand.id", ondelete="CASCADE")
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now, 
                                  sa_column=Column(DateTime, 
                                                   default=datetime.now, 
                                                   onupdate=datetime.now))
 
-    brand: AutoBrand = Relationship(back_populates="models")
+    brand: CarBrand = Relationship(back_populates="models")
 
-    autos: list["Auto"] = Relationship(back_populates="model")
+    cars: list["Car"] = Relationship(back_populates="model")
 
-class AutoType(SQLModel, table=True):
+class CarType(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
-    autos: list["Auto"] = Relationship(back_populates="type")
+    cars: list["Car"] = Relationship(back_populates="type")
 
-class AutoStatus(SQLModel, table=True):
+class CarStatus(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
-    autos: list["Auto"] = Relationship(back_populates="status")
+    cars: list["Car"] = Relationship(back_populates="status")
 
-class Auto(SQLModel, table=True):
+class Car(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    brand_id: int = Field(foreign_key="autobrand.id", ondelete="CASCADE")
-    model_id: int | None = Field(default=None, foreign_key="automodel.id", ondelete="SET NULL")
+    model_id: int | None = Field(default=None, foreign_key="carmodel.id", ondelete="SET NULL")
     year: int
-    type_id: int = Field(foreign_key="autotype.id")
+    type_id: int = Field(foreign_key="cartype.id")
     price_per_day: float
-    status_id: int = Field(foreign_key="autostatus.id")
+    status_id: int = Field(foreign_key="carstatus.id")
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now, 
                                  sa_column=Column(DateTime, 
                                                   default=datetime.now, 
                                                   onupdate=datetime.now))
 
-    brand: AutoBrand = Relationship(back_populates="autos")
-    model: AutoModel = Relationship(back_populates="autos")
-    type: AutoType = Relationship(back_populates="autos")
-    status: AutoStatus = Relationship(back_populates="autos")
+    model: CarModel = Relationship(back_populates="cars")
+    type: CarType = Relationship(back_populates="cars")
+    status: CarStatus = Relationship(back_populates="cars")
     
-    rentals: list["Rental"] = Relationship(back_populates="auto", cascade_delete=True)
-    rates: list["Rate"] = Relationship(back_populates="auto", cascade_delete=True)
+    rentals: list["Rental"] = Relationship(back_populates="car", cascade_delete=True)
 
     @field_validator("year")
     @classmethod
@@ -81,9 +83,9 @@ class UserType(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     username: str = Field(unique=True)
-    phone_number: str | None = Field(default=None, unique=True)
-    email: str = Field(unique=True, schema_extra={"pattern": r'^([a-z0-9_\.-]+)@([a-z0-9_\.-]+)\.([a-z\.]{2,6})$'})
-    password: str = Field(min_length=8, max_length=100, schema_extra={"pattern": r'^([A-Za-z\d]{8,})$'})
+    phone_number: PhoneNumberType | None = Field(default=None, unique=True)
+    email: EmailStrType = Field(unique=True)
+    password: PasswordStrType = Field(min_length=8, max_length=100)
     type_id: int = Field(foreign_key="usertype.id")
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now, 
@@ -94,7 +96,6 @@ class User(SQLModel, table=True):
     type: UserType = Relationship(back_populates="users")
     
     rentals: list["Rental"] = Relationship(back_populates="user", cascade_delete=True)
-    rates: list["Rate"] = Relationship(back_populates="user", cascade_delete=True)
 
 class RentalStatus(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -105,7 +106,7 @@ class RentalStatus(SQLModel, table=True):
 class Rental(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
-    auto_id: int = Field(foreign_key="auto.id", ondelete="CASCADE")
+    car_id: int = Field(foreign_key="car.id", ondelete="CASCADE")
     date_of_beginning_rental: datetime
     date_of_end_rental: datetime
     total_price: float = Field(default=0.0)
@@ -117,13 +118,14 @@ class Rental(SQLModel, table=True):
                                                   onupdate=datetime.now))
     
     user: User = Relationship(back_populates="rentals")
-    auto: Auto = Relationship(back_populates="rentals")
+    car: Car = Relationship(back_populates="rentals")
     status: RentalStatus = Relationship(back_populates="rentals")
+
+    rates: list["Rate"] = Relationship (back_populates="rental", cascade_delete=True)
 
 class Rate(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    auto_id: int = Field(foreign_key="auto.id", ondelete="CASCADE")
-    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
+    rental_id: int = Field(unique=True, foreign_key="rental.id", ondelete="CASCADE")
     rating: int = Field(ge=1, le=5)
     comment: str | None = Field(default=None, max_length=200)
     created_at: datetime = Field(default_factory=datetime.now)
@@ -131,31 +133,31 @@ class Rate(SQLModel, table=True):
                                  sa_column=Column(DateTime, 
                                                   default=datetime.now, 
                                                   onupdate=datetime.now))
-    auto: Auto = Relationship(back_populates="rates")
-    user: User = Relationship(back_populates="rates")
+
+    rental: Rental = Relationship(back_populates="rates")
 
 
 #Таблицы для CRUD
 #Админ-таблицы
 class UserCreate(BaseModel):
     username: str
-    phone_number: str | None = None
-    email: str
-    password: str
+    phone_number: PhoneNumberType | None = None
+    email: EmailStrType
+    password: PasswordStrType
     type_id: int
 
 class UserRead(BaseModel):
     id: int
     username: str
-    phone_number: str | None = None
-    email: str
+    phone_number: PhoneNumberType | None = None
+    email: EmailStrType
     type_id: int
 
 class UserUpdate(BaseModel):
     username: str | None = None
-    phone_number: str | None = None
-    email: str | None = None
-    password: str | None = None
+    phone_number: PhoneNumberType | None = None
+    email: EmailStrType | None = None
+    password: PasswordStrType | None = None
     type_id: int | None = None
 
 class UserTypeRead(BaseModel):
@@ -163,55 +165,52 @@ class UserTypeRead(BaseModel):
     name: str
 
 #Менеджер-таблицы
-class AutoBrandCreate(BaseModel):
+class CarBrandCreate(BaseModel):
     name: str
 
-class AutoBrandRead(BaseModel):
+class CarBrandRead(BaseModel):
     id: int
     name: str
 
-class AutoBrandUpdate(BaseModel):
+class CarBrandUpdate(BaseModel):
     name: str | None = None
 
-class AutoModelCreate(BaseModel):
+class CarModelCreate(BaseModel):
     name: str
     brand_id: int
 
-class AutoModelRead(BaseModel):
+class CarModelRead(BaseModel):
     id: int
     name: str
     brand_id: int
 
-class AutoModelUpdate(BaseModel):
+class CarModelUpdate(BaseModel):
     name: str | None = None
     brand_id: int | None = None
 
-class AutoTypeRead(BaseModel):
+class CarTypeRead(BaseModel):
     id: int
     name: str
 
-class AutoStatusRead(BaseModel):
+class CarStatusRead(BaseModel):
     id: int
     name: str
 
-class AutoCreate(BaseModel):
-    brand_id: int
+class CarCreate(BaseModel):
     model_id: int | None = None
     year: int
     type_id: int
     price_per_day: float
 
-class AutoRead(BaseModel):
+class CarRead(BaseModel):
     id: int
-    brand_id: int
     model_id: int | None = None
     year: int
     type_id: int
     price_per_day: float
     status_id: int
 
-class AutoUpdate(BaseModel):
-    brand_id: int | None = None
+class CarUpdate(BaseModel):
     model_id: int | None = None
     year: int | None = None
     type_id: int | None = None
@@ -224,7 +223,7 @@ class RentalStatusRead(BaseModel):
 
 class RentalCreate(BaseModel):
     user_id: int
-    auto_id: int
+    car_id: int
     date_of_beginning_rental: datetime
     date_of_end_rental: datetime
     total_price: float
@@ -232,14 +231,14 @@ class RentalCreate(BaseModel):
 class RentalRead(BaseModel):
     id: int
     user_id: int
-    auto_id: int
+    car_id: int
     date_of_beginning_rental: datetime
     date_of_end_rental: datetime
     total_price: float
     status_id: int
 
 class RentalUpdate(BaseModel):
-    auto_id: int | None = None
+    car_id: int | None = None
     date_of_beginning_rental: datetime | None = None
     date_of_end_rental: datetime | None = None
     total_price: float | None = None
@@ -247,9 +246,21 @@ class RentalUpdate(BaseModel):
 
 class RateRead(BaseModel):
     id: int
-    auto_id: int
-    user_id: int
+    rental_id: int
     rating: int
     comment: str | None = None
 
 #Клиент-таблицы
+class RentalClientCreate(BaseModel):
+    car_id: int
+    date_of_beginning_rental: datetime
+    date_of_end_rental: datetime
+
+class RateCreate(BaseModel):
+    rental_id: int
+    rating: int
+    comment: str | None = None
+
+class RateUpdate(BaseModel):
+    rating: int
+    comment: str | None = None

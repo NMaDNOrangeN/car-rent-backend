@@ -66,14 +66,6 @@ class Car(SQLModel, table=True):
     
     rentals: list["Rental"] = Relationship(back_populates="car", cascade_delete=True)
 
-    @field_validator("year")
-    @classmethod
-    def validate_year(cls, value: int) -> int:
-        current_year = datetime.now().year
-        if not (1900 <= value <= current_year):
-            raise ValueError(f"Year must be between 1900 and {current_year}")
-        return value
-
 class UserType(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
@@ -202,6 +194,14 @@ class CarCreate(BaseModel):
     type_id: int
     price_per_day: float
 
+    @field_validator("year")
+    @classmethod
+    def validate_year(cls, value: int) -> int:
+        current_year = datetime.now().year
+        if not (1900 <= value <= current_year):
+            raise ValueError(f"Year must be between 1900 and {current_year}")
+        return value
+
 class CarRead(BaseModel):
     id: int
     model_id: int | None = None
@@ -216,6 +216,14 @@ class CarUpdate(BaseModel):
     type_id: int | None = None
     price_per_day: float | None = None
     status_id: int | None = None
+
+    @field_validator("year")
+    @classmethod
+    def validate_year(cls, value: int) -> int:
+        current_year = datetime.now().year
+        if not (1900 <= value <= current_year):
+            raise ValueError(f"Year must be between 1900 and {current_year}")
+        return value
 
 class RentalStatusRead(BaseModel):
     id: int

@@ -22,6 +22,9 @@
     2. В режиме prod\
     `python -m fastapi run main.py`
 
+5. Создание БД и загрузка посева\
+`python seed.py`
+
 ## API
 
 ## Валидация

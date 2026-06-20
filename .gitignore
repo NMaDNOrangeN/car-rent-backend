@@ -2,3 +2,5 @@
 __pycache__/
 .env
 car_rent.db
+functional_testing.py
+requirements-dev.txt

@@ -236,7 +236,6 @@ class RentalCreate(BaseModel):
     car_id: int
     date_of_beginning_rental: datetime
     date_of_end_rental: datetime
-    total_price: float
 
 class RentalRead(BaseModel):
     id: int

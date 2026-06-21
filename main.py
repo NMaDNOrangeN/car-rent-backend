@@ -73,13 +73,23 @@ async def read_users_me(current_user: Annotated[m.User, Depends(get_current_user
     return current_user
 
 #Эндпоинты для админа
-@app.get("/api/admin/users/", response_model=list[m.UserRead], tags=["Admin - Users"])
-async def read_admin_users(current_user: Annotated[m.User, Depends(get_current_admin_user)]):
+@app.get("/api/admin/users", response_model=list[m.UserRead], tags=["Admin - Users"])
+async def read_admin_users(current_user: Annotated[m.User, Depends(get_current_admin_user)], page: int = Query(1, ge=1), 
+                           limit: int = Query(10, ge=1, le=100), username: str | None = None, 
+                           email: str | None = None, type: str | None = None):
     with Session(db.engine) as session:
-        users = session.exec(select(m.User)).all()
+        query = select(m.User)
+        if username:
+            query = query.where(m.User.username.ilike(f"%{username}%"))
+        if email:
+            query = query.where(m.User.email.ilike(f"%{email}%"))
+        if type:
+            query = (query.join(m.UserType).where(m.UserType.name.ilike(f"%{type}%")))
+        query = query.offset((page - 1) * limit).limit(limit)
+        users = session.exec(query).all()
         return users
     
-@app.get("/api/admin/users/types/", response_model=list[m.UserTypeRead], tags=["Admin - User Types"])
+@app.get("/api/admin/users/types", response_model=list[m.UserTypeRead], tags=["Admin - User Types"])
 async def read_admin_user_types(current_user: Annotated[m.User, Depends(get_current_admin_user)]):
     with Session(db.engine) as session:
         user_types = session.exec(select(m.UserType)).all()
@@ -102,7 +112,7 @@ async def read_admin_user_type(type_id: int, current_user: Annotated[m.User, Dep
             raise HTTPException(status_code=404, detail="User type not found")
         return user_type
     
-@app.post("/api/admin/users/", response_model=m.UserRead, tags=["Admin - Users"])
+@app.post("/api/admin/users", response_model=m.UserRead, tags=["Admin - Users"])
 async def create_admin_user(user: m.UserCreate, current_user: Annotated[m.User, Depends(get_current_admin_user)]):
     with Session(db.engine) as session:
         if not session.get(m.UserType, user.type_id):
@@ -171,22 +181,45 @@ async def delete_admin_user(user_id: int, current_user: Annotated[m.User, Depend
         return user
     
 #Эндпоинты для менеджера
-@app.get("/api/manager/cars/", response_model=list[m.CarRead], tags=["Manager - Cars"])
-async def read_manager_cars(current_user: Annotated[m.User, Depends(get_current_manager_user)]):
+@app.get("/api/manager/cars", response_model=list[m.CarRead], tags=["Manager - Cars"])
+async def read_manager_cars(current_user: Annotated[m.User, Depends(get_current_manager_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), type: str | None = Query(None, description="Car type name"), minYear: int | None = Query(None, ge=1900), 
+                    status: str | None = Query(None, description="Car status name")):
     with Session(db.engine) as session:
-        cars = session.exec(select(m.Car)).all()
+        query = select(m.Car)
+        if type:
+            query = query.join(m.CarType).where(m.CarType.name.ilike(f"%{type}%"))
+        if status:
+            query = query.join(m.CarStatus).where(m.CarStatus.name.ilike(f"%{status}%"))
+        if minYear:
+            query = query.where(m.Car.year >= minYear)
+        query = (query.offset((page - 1) * limit).limit(limit))
+        cars = session.exec(query).all()
         return cars
     
-@app.get("/api/manager/cars/brands/", response_model=list[m.CarBrandRead], tags=["Manager - Brands"])
-async def read_manager_car_brands(current_user: Annotated[m.User, Depends(get_current_manager_user)]):
+@app.get("/api/manager/cars/brands", response_model=list[m.CarBrandRead], tags=["Manager - Brands"])
+async def read_manager_car_brands(current_user: Annotated[m.User, Depends(get_current_manager_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), name: str | None = Query(None, description="Car brand name")):
     with Session(db.engine) as session:
-        brands = session.exec(select(m.CarBrand)).all()
+        query = select(m.CarBrand)
+        if name:
+            query = query.where(m.CarBrand.name.ilike(f"%{name}%"))
+        query = query.offset((page - 1) * limit).limit(limit)
+        brands = session.exec(query).all()
         return brands
     
 @app.get("/api/manager/cars/brands/models", response_model=list[m.CarModelRead], tags=["Manager - Models"])
-async def read_manager_car_brand_models(current_user: Annotated[m.User, Depends(get_current_manager_user)]):
+async def read_manager_car_brand_models(current_user: Annotated[m.User, Depends(get_current_manager_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), model: str | None = Query(None, description="Car model name"), 
+                    brand: str | None = Query(None, description="Car brand name")):
     with Session(db.engine) as session:
-        models = session.exec(select(m.CarModel)).all()
+        query = select(m.CarModel)
+        if model:
+            query = query.where(m.CarModel.name.ilike(f"%{model}%"))
+        if brand:
+            query = (query.join(m.CarBrand).where(m.CarBrand.name.ilike(f"%{brand}%")))
+        query = query.offset((page - 1) * limit).limit(limit)
+        models = session.exec(query).all()
         return models
     
 @app.get("/api/manager/cars/types", response_model=list[m.CarTypeRead], tags=["Manager - Car Types"])
@@ -242,9 +275,19 @@ async def read_manager_car_status(status_id: int, current_user: Annotated[m.User
         return car_status
     
 @app.get("/api/manager/rentals", response_model=list[m.RentalRead], tags=["Manager - Rentals"])
-async def read_manager_rentals(current_user: Annotated[m.User, Depends(get_current_manager_user)]):
+async def read_manager_rentals(current_user: Annotated[m.User, Depends(get_current_manager_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), user: int | None = Query(None, description="UserId"), 
+                    car: int | None = Query(None, description="CarId"), status: str | None = Query(None, description="Rental status name")):
     with Session(db.engine) as session:
-        rentals = session.exec(select(m.Rental)).all()
+        query = select(m.Rental)
+        if user:
+            query = query.where(m.Rental.user_id == user)
+        if car:
+            query = query.where(m.Rental.car_id == car)
+        if status:
+            query = (query.join(m.RentalStatus).where(m.RentalStatus.name.ilike(f"%{status}%")))
+        query = query.offset((page - 1) * limit).limit(limit)
+        rentals = session.exec(query).all()
         return rentals
     
 @app.get("/api/manager/rentals/statuses", response_model=list[m.RentalStatusRead], tags=["Manager - Rental Statuses"])
@@ -270,9 +313,17 @@ async def read_manager_rental_status(status_id: int, current_user: Annotated[m.U
         return rental_status
     
 @app.get("/api/manager/rates", response_model=list[m.RateRead], tags=["Manager - Rates"])
-async def read_manager_rates(current_user: Annotated[m.User, Depends(get_current_manager_user)]):
+async def read_manager_rates(current_user: Annotated[m.User, Depends(get_current_manager_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), rating: int | None = Query(None, description="Rental's rate"), 
+                    rental: int | None = Query(None, description="RentalId")):
     with Session(db.engine) as session:
-        rates = session.exec(select(m.Rate)).all()
+        query = select(m.Rate)
+        if rating:
+            query = query.where(m.Rate.rating == rating)
+        if rental:
+            query = query.where(m.Rate.rental_id == rental)
+        query = query.offset((page - 1) * limit).limit(limit)
+        rates = session.exec(query).all()
         return rates
     
 @app.get("/api/manager/rates/{rate_id}", response_model=m.RateRead, tags=["Manager - Rates"])
@@ -283,7 +334,7 @@ async def read_manager_rate(rate_id: int, current_user: Annotated[m.User, Depend
             raise HTTPException(status_code=404, detail="Rate not found")
         return rate
     
-@app.post("/api/manager/cars/brands/", response_model=m.CarBrandRead, tags=["Manager - Brands"])
+@app.post("/api/manager/cars/brands", response_model=m.CarBrandRead, tags=["Manager - Brands"])
 async def create_manager_car_brand(brand: m.CarBrandCreate, current_user: Annotated[m.User, Depends(get_current_manager_user)]):
     with Session(db.engine) as session:
         if session.exec(select(m.CarBrand).where(m.CarBrand.name == brand.name)).first():
@@ -330,7 +381,7 @@ async def delete_manager_car_brand(brand_id: int, current_user: Annotated[m.User
         logger.info(f"Manager-user ({current_user.username}, {current_user.id}) deleted brand (id: {brand.id}, name: {brand.name})")
         return brand
     
-@app.post("/api/manager/cars/brands/models/", response_model=m.CarModelRead, tags=["Manager - Models"])
+@app.post("/api/manager/cars/brands/models", response_model=m.CarModelRead, tags=["Manager - Models"])
 async def create_manager_car_brand_model(model: m.CarModelCreate, current_user: Annotated[m.User, Depends(get_current_manager_user)]):
     with Session(db.engine) as session:
         if not session.get(m.CarBrand, model.brand_id):
@@ -390,7 +441,7 @@ async def delete_manager_car_brand_model(model_id: int, current_user: Annotated[
         logger.info(f"Manager-user ({current_user.username}, {current_user.id}) deleted model (id: {model.id}, name: {model.name})")
         return model
     
-@app.post("/api/manager/cars/", response_model=m.CarRead, tags=["Manager - Cars"])
+@app.post("/api/manager/cars", response_model=m.CarRead, tags=["Manager - Cars"])
 async def create_manager_car(car: m.CarCreate, current_user: Annotated[m.User, Depends(get_current_manager_user)]):
     with Session(db.engine) as session:
         if car.model_id is not None and not session.get(m.CarModel, car.model_id):
@@ -450,7 +501,7 @@ async def delete_manager_car(car_id: int, current_user: Annotated[m.User, Depend
         logger.info(f"Manager-user ({current_user.username}, {current_user.id}) deleted car (id: {car.id}, model_id: {car.model_id})")
         return car
     
-@app.post("/api/manager/rentals/", response_model=m.RentalRead, tags=["Manager - Rentals"])
+@app.post("/api/manager/rentals", response_model=m.RentalRead, tags=["Manager - Rentals"])
 async def create_manager_rental(rental: m.RentalCreate, current_user: Annotated[m.User, Depends(get_current_manager_user)]):
     with Session(db.engine) as session:
         car = session.get(m.Car, rental.car_id)
@@ -574,10 +625,20 @@ async def delete_manager_rental(rental_id: int, current_user: Annotated[m.User, 
         return rental
     
 #Эндпоинты для клиента
-@app.get("/api/cars/", response_model=list[m.CarRead], tags=["Client - Cars"])
-async def read_cars(current_user: Annotated[m.User, Depends(get_current_user)]):
+@app.get("/api/cars", response_model=list[m.CarRead], tags=["Client - Cars"])
+async def read_cars(current_user: Annotated[m.User, Depends(get_current_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), type: str | None = Query(None, description="Car type name"), minYear: int | None = Query(None, ge=1900), 
+                    status: str = Query(default="available", description="Car status name (available, rented, all)")):
     with Session(db.engine) as session:
-        cars = session.exec(select(m.Car)).all()
+        query = select(m.Car)
+        if type:
+            query = query.join(m.CarType).where(m.CarType.name.ilike(f"%{type}%"))
+        if status.lower() != "all":
+            query = query.join(m.CarStatus).where(m.CarStatus.name.ilike(f"%{status}%"))
+        if minYear:
+            query = query.where(m.Car.year >= minYear)
+        query = (query.offset((page - 1) * limit).limit(limit))
+        cars = session.exec(query).all()
         return cars
     
 @app.get("/api/cars/{car_id}", response_model=m.CarRead, tags=["Client - Cars"])
@@ -588,10 +649,15 @@ async def read_car(car_id: int, current_user: Annotated[m.User, Depends(get_curr
             raise HTTPException(status_code=404, detail="Car not found")
         return car
     
-@app.get("/api/rentals/", response_model=list[m.RentalRead], tags=["Client - Rentals"])
-async def read_rentals(current_user: Annotated[m.User, Depends(get_current_user)]):
+@app.get("/api/rentals", response_model=list[m.RentalRead], tags=["Client - Rentals"])
+async def read_rentals(current_user: Annotated[m.User, Depends(get_current_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), status: str | None = Query(None, description="Rental status name")):
     with Session(db.engine) as session:
-        rentals = session.exec(select(m.Rental).where(m.Rental.user_id == current_user.id)).all()
+        query = select(m.Rental).where(m.Rental.user_id == current_user.id)
+        if status:
+            query = (query.join(m.RentalStatus).where(m.RentalStatus.name.ilike(f"%{status}%")))
+        query = query.offset((page - 1) * limit).limit(limit)
+        rentals = session.exec(query).all()
         return rentals
 
 @app.get("/api/rentals/{rental_id}", response_model=m.RentalRead, tags=["Client - Rentals"])
@@ -604,10 +670,15 @@ async def read_rental(rental_id: int, current_user: Annotated[m.User, Depends(ge
             raise HTTPException(status_code=403, detail="This rental is not yours")
         return rental
     
-@app.get("/api/rates/", response_model=list[m.RateRead], tags=["Client - Rates"])
-async def read_rates(current_user: Annotated[m.User, Depends(get_current_user)]):
+@app.get("/api/rates", response_model=list[m.RateRead], tags=["Client - Rates"])
+async def read_rates(current_user: Annotated[m.User, Depends(get_current_user)], page: int = Query(1, ge=1), 
+                    limit: int = Query(10, ge=1, le=100), rating: int | None = Query(None, ge=1, le=5, description="Rental's rate")):
     with Session(db.engine) as session:
-        rates = session.exec(select(m.Rate).join(m.Rental).where(m.Rental.user_id == current_user.id)).all()
+        query = (select(m.Rate).join(m.Rental).where(m.Rental.user_id == current_user.id))
+        if rating:
+            query = query.where(m.Rate.rating == rating)
+        query = query.offset((page - 1) * limit).limit(limit)
+        rates = session.exec(query).all()
         return rates
     
 @app.get("/api/rates/{rate_id}", response_model=m.RateRead, tags=["Client - Rates"])
@@ -618,7 +689,7 @@ async def read_rate(rate_id: int, current_user: Annotated[m.User, Depends(get_cu
             raise HTTPException(status_code=404, detail="Rate not found")
         return rate
     
-@app.post("/api/rentals/", response_model=m.RentalRead, tags=["Client - Rentals"])
+@app.post("/api/rentals", response_model=m.RentalRead, tags=["Client - Rentals"])
 async def create_rental(rental: m.RentalClientCreate, current_user: Annotated[m.User, Depends(get_current_user)]):
     with Session(db.engine) as session:
         car = session.get(m.Car, rental.car_id)
@@ -653,7 +724,7 @@ async def create_rental(rental: m.RentalClientCreate, current_user: Annotated[m.
         logger.info(f"Client-user ({current_user.username}, {current_user.id}) created new rental (id: {db_rental.id}, car_id: {db_rental.car_id}, total_price: {db_rental.total_price})")
         return db_rental
     
-@app.post("/api/rates/", response_model=m.RateRead, tags=["Client - Rates"])
+@app.post("/api/rates", response_model=m.RateRead, tags=["Client - Rates"])
 async def create_rate(rate: m.RateCreate, current_user: Annotated[m.User, Depends(get_current_user)]):
     with Session(db.engine) as session:
         rental = session.exec(select(m.Rental).where((m.Rental.id == rate.rental_id) & (m.Rental.user_id == current_user.id))).first()

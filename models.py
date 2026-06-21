@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from sqlmodel import SQLModel, Field, Relationship, Column, DateTime
+from sqlmodel import SQLModel, Field, Relationship, Column, DateTime, UniqueConstraint
 from pydantic import BaseModel, field_validator, StringConstraints
 from typing_extensions import Annotated
 import db
@@ -22,8 +22,10 @@ class CarBrand(SQLModel, table=True):
     models: list["CarModel"] = Relationship(back_populates="brand", cascade_delete=True)
 
 class CarModel(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("name", "brand_id", name="unique_model_name_brand"),)
+
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(unique=True)
+    name: str
     brand_id: int = Field(foreign_key="carbrand.id", ondelete="CASCADE")
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now, 

@@ -4,3 +4,4 @@ __pycache__/
 car_rent.db
 functional_testing.py
 requirements-dev.txt
+logs.log
